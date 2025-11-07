@@ -1,0 +1,162 @@
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { useForumPosts } from '@/hooks/useForumPosts';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { MessageSquare, Eye, Pin, Lock, Plus } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { formatDistanceToNow } from 'date-fns';
+import { th } from 'date-fns/locale';
+
+const categories = [
+  { value: 'all', label: 'ทั้งหมด' },
+  { value: 'general', label: 'ทั่วไป' },
+  { value: 'adoption', label: 'การรับเลี้ยง' },
+  { value: 'health', label: 'สุขภาพ' },
+  { value: 'behavior', label: 'พฤติกรรม' },
+  { value: 'nutrition', label: 'อาหารและโภชนาการ' },
+];
+
+const Forum = () => {
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const { data: posts, isLoading } = useForumPosts(selectedCategory);
+  const { user } = useAuth();
+
+  const getCategoryColor = (category: string) => {
+    const colors: Record<string, string> = {
+      general: 'bg-blue-500/10 text-blue-700 dark:text-blue-300',
+      adoption: 'bg-green-500/10 text-green-700 dark:text-green-300',
+      health: 'bg-red-500/10 text-red-700 dark:text-red-300',
+      behavior: 'bg-purple-500/10 text-purple-700 dark:text-purple-300',
+      nutrition: 'bg-orange-500/10 text-orange-700 dark:text-orange-300',
+    };
+    return colors[category] || colors.general;
+  };
+
+  return (
+    <div className="container mx-auto px-4 py-8 max-w-6xl">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+        <div>
+          <h1 className="text-3xl sm:text-4xl font-bold text-foreground mb-2">เว็บบอร์ด</h1>
+          <p className="text-muted-foreground">แบ่งปันประสบการณ์และถามตอบเกี่ยวกับแมว</p>
+        </div>
+        {user && (
+          <Link to="/forum/create">
+            <Button size="lg" className="w-full sm:w-auto">
+              <Plus className="mr-2 h-5 w-5" />
+              สร้างกระทู้ใหม่
+            </Button>
+          </Link>
+        )}
+      </div>
+
+      {/* Categories */}
+      <Tabs value={selectedCategory} onValueChange={setSelectedCategory} className="mb-6">
+        <TabsList className="flex flex-wrap h-auto gap-2 bg-muted/50 p-2">
+          {categories.map((cat) => (
+            <TabsTrigger key={cat.value} value={cat.value} className="flex-shrink-0">
+              {cat.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+
+        <TabsContent value={selectedCategory} className="mt-6">
+          {isLoading ? (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground">กำลังโหลด...</p>
+            </div>
+          ) : posts && posts.length > 0 ? (
+            <div className="space-y-4">
+              {posts.map((post) => (
+                <Link key={post.id} to={`/forum/${post.id}`}>
+                  <Card className="hover:shadow-lg transition-all hover:border-primary/50">
+                    <CardHeader className="pb-3">
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                        <div className="flex-1 space-y-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge className={getCategoryColor(post.category)}>
+                              {categories.find((c) => c.value === post.category)?.label || post.category}
+                            </Badge>
+                            {post.is_pinned && (
+                              <Badge variant="secondary" className="gap-1">
+                                <Pin className="h-3 w-3" />
+                                ปักหมุด
+                              </Badge>
+                            )}
+                            {post.is_locked && (
+                              <Badge variant="outline" className="gap-1">
+                                <Lock className="h-3 w-3" />
+                                ล็อค
+                              </Badge>
+                            )}
+                          </div>
+                          <CardTitle className="text-xl hover:text-primary transition-colors">
+                            {post.title}
+                          </CardTitle>
+                          <CardDescription className="line-clamp-2">
+                            {post.content}
+                          </CardDescription>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                      <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+                        <span className="font-medium text-foreground">
+                          {post.profiles?.full_name || 'ผู้ใช้ไม่ระบุชื่อ'}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Eye className="h-4 w-4" />
+                          {post.views}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <MessageSquare className="h-4 w-4" />
+                          {post.comment_count || 0}
+                        </span>
+                        <span className="ml-auto">
+                          {formatDistanceToNow(new Date(post.created_at), {
+                            addSuffix: true,
+                            locale: th,
+                          })}
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <Card className="text-center py-12">
+              <CardContent>
+                <MessageSquare className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+                <p className="text-muted-foreground mb-4">ยังไม่มีกระทู้ในหมวดนี้</p>
+                {user && (
+                  <Link to="/forum/create">
+                    <Button>สร้างกระทู้แรก</Button>
+                  </Link>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+      </Tabs>
+
+      {!user && (
+        <Card className="mt-6 border-primary/20 bg-primary/5">
+          <CardContent className="pt-6 text-center">
+            <p className="text-muted-foreground mb-4">
+              <Link to="/login" className="text-primary hover:underline font-medium">
+                เข้าสู่ระบบ
+              </Link>
+              เพื่อสร้างกระทู้และแสดงความคิดเห็น
+            </p>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+};
+
+export default Forum;
