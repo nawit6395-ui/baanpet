@@ -57,10 +57,16 @@ const Login = () => {
 
   const handleLineSignIn = () => {
     try {
+      if (!import.meta.env.VITE_LINE_CHANNEL_ID) {
+        toast.error('ไม่สามารถเข้าสู่ระบบด้วย LINE ได้', {
+          description: 'ค่า LINE Channel ID ยังไม่ถูกตั้งค่า โปรดติดต่อผู้ดูแลระบบ'
+        });
+        return;
+      }
       initiateLineLogin();
     } catch (error: any) {
       toast.error('ไม่สามารถเข้าสู่ระบบด้วย LINE ได้', {
-        description: error.message
+        description: error.message || 'เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ'
       });
     }
   };
