@@ -22,70 +22,87 @@ export const initiateLineLogin = () => {
 // Function to handle the callback from LINE
 export const handleLineCallback = async (code: string, state: string) => {
     try {
-        // Optional state validation (may not work across sessions/browser tabs)
+        // Optional state validation
         const savedState = sessionStorage.getItem('line_state');
         if (savedState && state && state !== savedState) {
             console.warn('State mismatch - could be from different session/tab', {
                 expected: savedState,
                 received: state
             });
-            // Don't throw error on state mismatch as it can happen in legitimate scenarios
         }
 
-        // Exchange code for token with LINE
-        try {
-            const tokenResponse = await axios.post(
-                'https://api.line.me/oauth2/v2.1/token',
-                new URLSearchParams({
+        console.log('Starting LINE token exchange with:', {
+            code: code.substring(0, 10) + '...',
+            redirectUri: REDIRECT_URI,
+            channelId: CHANNEL_ID,
+        });
+
+        // Exchange code for token with LINE using fetch
+        const tokenResponse = await fetch(
+            'https://api.line.me/oauth2/v2.1/token',
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
                     grant_type: 'authorization_code',
                     code: code,
                     redirect_uri: REDIRECT_URI,
                     client_id: CHANNEL_ID,
                     client_secret: CHANNEL_SECRET,
                 }).toString(),
-                {
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    }
-                }
-            );
+            }
+        );
 
-            const accessToken = tokenResponse.data.access_token;
-            const idToken = tokenResponse.data.id_token;
+        console.log('Token response status:', tokenResponse.status);
 
-            // Fetch user profile information
-            const profileResponse = await axios.get('https://api.line.me/v2/profile', {
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                },
+        if (!tokenResponse.ok) {
+            const errorText = await tokenResponse.text();
+            console.error('LINE token error response:', {
+                status: tokenResponse.status,
+                statusText: tokenResponse.statusText,
+                body: errorText,
             });
-
-            const userInfo = profileResponse.data;
-
-            sessionStorage.removeItem('line_state');
-            sessionStorage.removeItem('line_nonce');
-
-            return {
-                userId: userInfo.userId,
-                displayName: userInfo.displayName,
-                pictureUrl: userInfo.pictureUrl,
-                statusMessage: userInfo.statusMessage,
-                accessToken: accessToken,
-                idToken: idToken,
-            };
-        } catch (axiosError: any) {
-            console.error('Axios error details:', {
-                status: axiosError.response?.status,
-                statusText: axiosError.response?.statusText,
-                data: axiosError.response?.data,
-                message: axiosError.message,
-                config: {
-                    url: axiosError.config?.url,
-                    method: axiosError.config?.method,
-                }
-            });
-            throw axiosError;
+            throw new Error(`Failed to exchange code for token: ${tokenResponse.status} ${errorText}`);
         }
+
+        const tokenData = await tokenResponse.json();
+        console.log('Token exchange successful');
+
+        const accessToken = tokenData.access_token;
+        const idToken = tokenData.id_token;
+
+        // Fetch user profile information
+        const profileResponse = await fetch('https://api.line.me/v2/profile', {
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+            },
+        });
+
+        if (!profileResponse.ok) {
+            const profileError = await profileResponse.text();
+            console.error('Profile fetch error:', profileError);
+            throw new Error('Failed to fetch LINE user profile');
+        }
+
+        const userInfo = await profileResponse.json();
+        console.log('User profile fetched:', {
+            userId: userInfo.userId,
+            displayName: userInfo.displayName,
+        });
+
+        sessionStorage.removeItem('line_state');
+        sessionStorage.removeItem('line_nonce');
+
+        return {
+            userId: userInfo.userId,
+            displayName: userInfo.displayName,
+            pictureUrl: userInfo.pictureUrl,
+            statusMessage: userInfo.statusMessage,
+            accessToken: accessToken,
+            idToken: idToken,
+        };
     } catch (error) {
         console.error('Error during LINE login:', error);
         throw error;
