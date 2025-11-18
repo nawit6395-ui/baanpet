@@ -1,5 +1,7 @@
 const CHANNEL_ID = import.meta.env.VITE_LINE_CHANNEL_ID || '';
-const REDIRECT_URI = `${window.location.origin}/auth/line/callback`;
+// Use explicit redirect if provided, else fall back to current origin
+const REDIRECT_URI =
+    (import.meta.env.VITE_LINE_REDIRECT_URI as string) || `${window.location.origin}/auth/line/callback`;
 
 // Function to initiate LINE login
 export const initiateLineLogin = () => {
